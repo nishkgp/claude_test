@@ -4,67 +4,68 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a collection of browser-based games — no build tools, no package manager, no server required. Every game is a **single self-contained HTML file** with inline CSS and JS. Open the file directly in a browser to play.
+A collection of browser-based games. Every game is a **single self-contained HTML file** with inline CSS and JS — no build tools, no package manager, no server required. Open any file directly in a browser to play.
 
 ## Running Games
 
 ```bash
-open tictactoe.html        # macOS — opens in default browser
-open shooter.html          # same for the top-down shooter (in progress)
+open tictactoe.html    # macOS — opens in default browser
+open shooter.html
 ```
-
-No build step, no `npm install`, no local server needed.
 
 ## Git & GitHub Workflow
 
-- Remote: `https://github.com/nishkgp/claude_test`
-- Branch: `main`
-- Credential helper: `gh auth git-credential` (configured locally)
-- **After every meaningful change**: commit with a descriptive message and push to `origin main`
-
-```bash
-git add <file>
-git commit -m "Short imperative summary
-
-Longer explanation if needed."
-git push
-```
+- Remote: `https://github.com/nishkgp/claude_test` (branch: `main`)
+- Credential helper: `gh auth git-credential` (configured locally — no password prompts)
+- Commit and push after every meaningful change
 
 ## Architecture Conventions
 
-Each game file follows this internal structure (enforced by convention, not tooling):
+All game files share this internal script section order:
 
-1. **Constants & Config** — magic numbers, palette colors, tuning values at the top of the script
-2. **Utilities** — pure helper functions (`lerp`, `clamp`, etc.)
-3. **State objects** — plain JS objects (no classes) for game entities
-4. **Update logic** — mutates state, called each tick
-5. **Render logic** — reads state, draws to canvas or DOM; never mutates state
-6. **Event listeners** — registered once at init, update an `Input` snapshot object
-7. **Main loop** — `requestAnimationFrame` with capped delta-time (`dt = min(rawDt, 0.05)`)
+1. **Constants & Config** — palette colors, speeds, tuning values
+2. **Utilities** — pure helpers (`lerp`, `clamp`, `dist2`, etc.)
+3. **State objects** — plain JS objects, no classes
+4. **Update logic** — mutates state each tick
+5. **Render logic** — reads state only, never mutates
+6. **Event listeners** — registered once at init; update a single `Input` snapshot object
+7. **Main loop** — `requestAnimationFrame`, delta-time capped at `0.05s` to prevent tunneling on tab-switch
 8. **Bootstrap** — `init()` call at bottom
 
-### Canvas games (shooter and future games)
+### Canvas game conventions
 
-- Player is always rendered at canvas center; the camera translates the world around it
-- All collision is done in **world space**, rendering in **screen space** via camera transform
-- Tile maps are flat arrays indexed `y * mapWidth + x`; solid tile = `1`, floor = `0`
-- Particle pool is capped at 200 — reuse dead particles rather than allocating new objects
-- Render order: floor tiles → wall tiles → bullets → enemies (y-sorted) → player → particles → HUD overlays
+- Camera: player is always at canvas center; world translates around it
+- Coordinate spaces: collision in **world space**, rendering via camera offset to **screen space**
+- Tile maps: flat array, index = `y * mapWidth + x`; `0` = floor, `1` = wall, `2` = cover
+- Particle pool: capped at 200, reuse dead entries rather than `push`/`splice`
+- Render order: floor → walls → bullets → enemies (y-sorted) → player → particles → HUD
 
-### Color palette (shared across games)
+### Shared color palette
 
 ```
-Background:  #0d0d1a    Floor:   #1a1a2e    Wall:    #16213e
-Player:      #00ff88    Grunt:   #ff4444    Runner:  #44aaff
-Tank:        #884400    Bullet:  #ffee00    Accent:  #ff00ff
+Background  #0d0d1a    Floor    #1a1a2e    Wall     #16213e
+Player      #00ff88    Grunt    #ff4444    Runner   #44aaff
+Tank        #884400    Bullet   #ffee00    Accent   #ff00ff
 ```
 
 ## In-Progress: Top-Down Shooter (`shooter.html`)
 
-Planned as a single HTML file. See `.claude/plans/humble-rolling-wall.md` for the full implementation plan. Key facts:
+Single HTML file, Canvas 2D, all graphics drawn programmatically (no image assets).
 
-- 5 levels, wave-based enemy spawning
-- 3 enemy types: Grunt (beeline), Runner (zigzag), Tank (slow/heavy)
-- Controls: WASD move, mouse aim, left-click shoot, R reload, Enter start/restart
-- Audio: synthesized via Web Audio API (no audio files)
-- High score persisted in `localStorage`
+**State machine:** `MENU → PLAYING → LEVEL_COMPLETE → GAME_OVER` (+ `YOU_WIN` after level 5)
+
+**Enemy types:**
+
+| Type   | HP  | Speed | Radius | AI behavior           |
+|--------|-----|-------|--------|-----------------------|
+| Grunt  | 30  | 70    | 12     | Beeline toward player |
+| Runner | 15  | 140   | 9      | Fast zigzag           |
+| Tank   | 120 | 35    | 18     | Slow, high HP         |
+
+**5 levels:** simple room → 3-chamber corridors → L-shaped gauntlet → pillar arena → open final stand. Each level introduces new enemy types and multi-wave spawning.
+
+**Controls:** WASD move · mouse aim · left-click shoot (auto-fire) · R reload · Enter start/restart
+
+**Audio:** synthesized via Web Audio API — no audio files. `AudioContext` initialized on first user interaction to satisfy browser autoplay policy.
+
+**Persistence:** high score in `localStorage`.
