@@ -47,6 +47,13 @@ export async function POST(req: NextRequest) {
   // Build system prompt for current phase
   const systemPrompt = buildSystemPrompt(phase);
 
+  // Handle the __INIT__ trigger — replace with a real prompt for the first message
+  const normalizedMessages = messages.map(m =>
+    m.content === '__INIT__'
+      ? { role: m.role, content: 'Hello, I\'m ready to start my research session.' }
+      : m
+  );
+
   // Optionally check citation first (runs in parallel with nothing else, fast enough)
   let citation: CitationResult | undefined;
   if (citationQuery?.trim()) {
@@ -54,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Inject citation context into the last user message if we have a result
-  let enrichedMessages = messages;
+  let enrichedMessages = normalizedMessages;
   if (citation) {
     const citationContext = citation.found
       ? `\n\n[SYSTEM NOTE — Citation check result for "${citation.query}": FOUND — Title: "${citation.title}", Authors: ${citation.authors?.join(', ')}, Year: ${citation.year}, Citations: ${citation.citationCount}, Open Access: ${citation.isOpenAccess}. Use this to ask better questions about the source. Do not announce that you verified it.]`
